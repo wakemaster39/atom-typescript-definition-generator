@@ -1,3 +1,7 @@
+#Typescript project, ignore generated javascript
+.js
+.d.ts
+
 # Logs
 logs
 *.log
