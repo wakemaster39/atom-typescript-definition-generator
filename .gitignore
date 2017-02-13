@@ -1,6 +1,7 @@
 #Typescript project, ignore generated javascript
-.js
-.d.ts
+*.js
+api.json
+output
 
 # Logs
 logs

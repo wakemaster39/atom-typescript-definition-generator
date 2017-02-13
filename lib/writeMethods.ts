@@ -15,15 +15,44 @@ export class ClassGenerator {
 
     instanceMethods() {
         for (let method of this.klass.instanceMethods) {
-            let params = ClassGenerator.parseArguments(method.arguments)
+            let parsedArguments = ClassGenerator.parseArguments(method.arguments)
             let returnType = ""
-
-            this.addLine(`    function ${method.name}(${params}): ${returnType}`)
+            this.generateFunctionDeclarations(method.name, parsedArguments, returnType)
         }
     }
 
-    static parseArguments(args: AtomDocTypes.Argument[]): string {
-        let argOutput: string[] = []
+    generateFunctionDeclarations(methodName: string, args: ParsedArgumentCollection, returnType: string) {
+        if (args.filter(x => x["optional"]).length == 0 || args.filter(x => x["optional"]).length == args.length || args[args.length - 1]["optional"]) {
+            this.addFunction(methodName, args, returnType)
+            return
+        }
+
+        let clonedCollection = args.slice(0)
+        let lastArg = clonedCollection.pop()
+        let base = new ParsedArgumentCollection()
+
+        for (let i = 0; i < clonedCollection.length; i = 0) {
+            let nextItem = Object.assign({}, clonedCollection.shift())
+            if (nextItem.optional) {
+                nextItem.optional = false
+
+                let clone = base.slice(0)
+                clone.push(lastArg)
+                this.addFunction(methodName, clone, returnType)
+            }
+
+            base.push(nextItem)
+        }
+        base.push(lastArg)
+        this.addFunction(methodName, base, returnType)
+    }
+
+    private addFunction(methodName: string, args: ParsedArgumentCollection, returnType: string) {
+        this.addLine(`    function ${methodName}(${args.toString()}): ${returnType}`)
+    }
+
+    static parseArguments(args: AtomDocTypes.Argument[]): ParsedArgumentCollection {
+        let argOutput: ParsedArgumentCollection = new ParsedArgumentCollection()
         for (let argname in args) {
             let arg = args[argname]
             let argType = ""
@@ -33,10 +62,9 @@ export class ClassGenerator {
             else {
                 argType = ClassGenerator.parseArgWithChildren(arg)
             }
-            if (argOutput.length != 0) argOutput.push(", ")
-            argOutput.push(`${arg.name}${arg.isOptional ? "?" : ""}: ${argType}`)
+            argOutput.push({ name: arg.name, optional: arg.isOptional, type: argType })
         }
-        return argOutput.join("")
+        return argOutput
     }
 
     static parseChildlessArg(arg: AtomDocTypes.Argument): string {
@@ -52,21 +80,21 @@ export class ClassGenerator {
             case "Boolean":
                 return "boolean"
             case "Function":
-            sgsfdsdsdf //working here
+                return "Function"
             default:
-            // console.log(arg.type, arg.name)
+              console.log(arg)
         }
     }
 
     static parseArgWithChildren(arg: AtomDocTypes.Argument): string {
         if (arg.type == "Object" || arg.type == null) {
-            return `{${ClassGenerator.parseArguments(arg.children)}}`
+            return `{${ClassGenerator.parseArguments(arg.children).toString()}}`
         }
         else if (arg.type == "Function") {
-            return `(${ClassGenerator.parseArguments(arg.children)}) => void}`
+            return `(${ClassGenerator.parseArguments(arg.children).toString()}) => void}`
         }
-        else if(arg.type == "Array" && arg.description.match(/.*{Object}.*/g)){
-          return `{${ClassGenerator.parseArguments(arg.children)}}`
+        else if (arg.type == "Array" && arg.description.match(/.*{Object}.*/g)) {
+            return `{${ClassGenerator.parseArguments(arg.children).toString()}}`
         }
         else {
             console.log(arg)
@@ -89,5 +117,21 @@ export class ClassGenerator {
 
     addLine(line: string) {
         this.generatedData.push(`${line}\n`)
+    }
+}
+
+interface ParsedArgument {
+    name: string;
+    optional: boolean;
+    type: string;
+}
+
+class ParsedArgumentCollection extends Array<ParsedArgument>{
+    public toString(): string {
+        let returnData: string[] = []
+        for (let item of this) {
+            returnData.push(`${item.name}${item.optional ? "?" : ""}: ${item.type}`)
+        }
+        return returnData.join(", ")
     }
 }
